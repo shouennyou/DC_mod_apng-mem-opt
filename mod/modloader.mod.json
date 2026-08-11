@@ -1,0 +1,19 @@
+{
+  "id": "apng-mem-opt",
+  "name": "内存优化",
+  "author": [
+    "逍婉瑶"
+  ],
+  "description": "重构 APNG 插件逻辑以降低内存占用 (以增加磁盘 I/O 为代价), 注意可能存在潜在稳定性风险.",
+  "version": "1.0.0",
+  "update": {
+    "source": "github",
+    "repo": "shouennyou/DC_mod_assistant-suite"
+  },
+  "depends": {
+    "devilconnection-modloader": "*"
+  },
+  "breaks": {
+    "assistant-suite": "<=1.1.0"
+  }
+}
