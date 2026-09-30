@@ -1,0 +1,78 @@
+{
+  "title": "内存优化",
+  "description": "设置 APNG 与 WebP 的预加载和缓存释放；开启预加载会忽略对应释放设置。",
+  "fields": [
+    {
+      "key": "apngPreload",
+      "type": "toggle",
+      "label": "启动时预加载 APNG",
+      "default": false,
+      "help": "启动时按原版方式预加载并常驻缓存；开启时下方 APNG 释放设置无效。"
+    },
+    {
+      "key": "apngReleaseMode",
+      "type": "select",
+      "label": "APNG 缓存释放策略",
+      "default": "delayed",
+      "help": "仅在未开启 APNG 预加载时生效。",
+      "options": [
+        {
+          "label": "不释放",
+          "value": "keep"
+        },
+        {
+          "label": "立即释放",
+          "value": "immediate"
+        },
+        {
+          "label": "延迟释放",
+          "value": "delayed"
+        }
+      ]
+    },
+    {
+      "key": "apngReleaseSeconds",
+      "type": "number",
+      "label": "APNG 延迟释放秒数",
+      "default": 30,
+      "placeholder": "30",
+      "help": "仅在未预加载且选择延迟释放时生效；0 为立即释放。"
+    },
+    {
+      "key": "webpPreload",
+      "type": "toggle",
+      "label": "启动时预加载 WebP",
+      "default": false,
+      "help": "启动时预加载并常驻缓存；开启时下方 WebP 释放设置无效。"
+    },
+    {
+      "key": "webpReleaseMode",
+      "type": "select",
+      "label": "WebP 缓存释放策略",
+      "default": "delayed",
+      "help": "仅在未开启 WebP 预加载时生效。",
+      "options": [
+        {
+          "label": "不释放",
+          "value": "keep"
+        },
+        {
+          "label": "立即释放",
+          "value": "immediate"
+        },
+        {
+          "label": "延迟释放",
+          "value": "delayed"
+        }
+      ]
+    },
+    {
+      "key": "webpReleaseSeconds",
+      "type": "number",
+      "label": "WebP 延迟释放秒数",
+      "default": 30,
+      "placeholder": "30",
+      "help": "仅在未预加载且选择延迟释放时生效；0 为立即释放。"
+    }
+  ]
+}

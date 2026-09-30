@@ -1,7 +1,6 @@
 onmessage = async e => {
   try {
-    const apngBlob = await loadAPNGForWorker(e.data)
-    postMessage(apngBlob)
+    postMessage(await loadAPNGForWorker(e.data))
   } catch (error) {
     postMessage({ error: error?.message || String(error) })
   } finally {
@@ -41,7 +40,9 @@ function loadAPNG(blob) {
 }
 
 function loadAPNGForWorker(blob) {
-  return new APNG().load(blob).then(([frames, iterations]) => {
+  return new APNG().load(blob).then(apng => {
+    if (!apng) throw new Error('不是 APNG 文件')
+    const [frames] = apng
     const delays = frames.map(frame => frame.delay * 1000)
     return { frames, delays }
   })
