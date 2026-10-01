@@ -75,6 +75,98 @@ function inspect(input) {
   }
 }
 
+// 将 WebP 解码为与 loadAPNG 相同的 { images, delays } 结构。
+// 动画 WebP 使用 WebCodecs 逐帧解码后转为 PNG，供现有 canvas 播放器使用。
+function loadWEBP(blob) {
+  var bytes = toUint8(blob)
+  var info = inspect(bytes)
+  if (!info) return Promise.reject(new Error('不是 WebP 文件'))
+
+  var toPNGImage = function (source, width, height) {
+    var canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    var context = canvas.getContext('2d')
+    if (!context) return Promise.reject(new Error('无法创建 WebP 解码画布'))
+    context.drawImage(source, 0, 0, width, height)
+
+    return new Promise(function (resolve, reject) {
+      var image = new Image()
+      image.onload = function () {
+        resolve(image)
+      }
+      image.onerror = reject
+      image.src = canvas.toDataURL('image/png')
+    })
+  }
+
+  // 静态 WebP 可由浏览器原生 Image 解码；动画帧则必须依赖 WebCodecs。
+  if (typeof ImageDecoder !== 'function') {
+    if (info.animated) {
+      return Promise.reject(
+        new Error('当前 Chromium 不支持 ImageDecoder，无法拆分动态 WebP 帧')
+      )
+    }
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(new Blob([bytes], { type: 'image/webp' }))
+      var image = new Image()
+      image.onload = function () {
+        URL.revokeObjectURL(url)
+        toPNGImage(image, image.naturalWidth, image.naturalHeight)
+          .then(function (pngImage) {
+            resolve({ images: [pngImage], delays: [0] })
+          })
+          .catch(reject)
+      }
+      image.onerror = function (error) {
+        URL.revokeObjectURL(url)
+        reject(error)
+      }
+      image.src = url
+    })
+  }
+
+  return (async function () {
+    var decoder = new ImageDecoder({
+      data: bytes.slice(),
+      type: 'image/webp',
+      preferAnimation: true,
+    })
+    try {
+      await decoder.tracks.ready
+      var track = decoder.tracks.selectedTrack
+      var frameCount = Math.max(
+        Number(track && track.frameCount) || info.frameCount || 1,
+        1
+      )
+      var images = []
+      var delays = []
+
+      for (var index = 0; index < frameCount; index++) {
+        var result = await decoder.decode({ frameIndex: index })
+        var frame = result.image
+        try {
+          images.push(
+            await toPNGImage(frame, frame.displayWidth, frame.displayHeight)
+          )
+          var duration = Number(frame.duration)
+          delays.push(
+            Number.isFinite(duration) && duration > 0
+              ? duration / 1000
+              : info.durations[index] || 100
+          )
+        } finally {
+          frame.close()
+        }
+      }
+
+      return { images: images, delays: delays }
+    } finally {
+      decoder.close()
+    }
+  })()
+}
+
 // WebP ANIM 块: 前 4 字节为背景色, 后 2 字节为小端循环次数.
 // 0 表示无限循环, 非零表示首次播放后的重复次数.
 function setLoopCount(input, count) {

@@ -5,7 +5,7 @@
     "逍婉瑶"
   ],
   "description": "通过 APNG/WebP 按需加载与自动释放缓存，降低游戏常驻内存占用；可选使用原版式启动预加载。",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "update": {
     "source": "github",
     "repo": "shouennyou/DC_mod_assistant-suite"

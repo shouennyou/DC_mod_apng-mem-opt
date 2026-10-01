@@ -1,3 +1,19 @@
+// apng.js 同时在主线程和 Worker 中运行。仅主线程按需加载 WebP 解码器，
+// 并由 loadAPNG 等待其完成，避免动态脚本的异步加载竞态。
+const webpReady =
+  typeof document === 'undefined'
+    ? null
+    : typeof loadWEBP === 'function'
+      ? Promise.resolve()
+      : new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+          script.src = './tyrano/libs/webp.js'
+          script.onload = resolve
+          script.onerror = () =>
+            reject(new Error('无法加载 WebP 解码器: ./tyrano/libs/webp.js'))
+          ;(document.head || document.documentElement).appendChild(script)
+        })
+
 onmessage = async e => {
   try {
     postMessage(await loadAPNGForWorker(e.data))
@@ -9,6 +25,31 @@ onmessage = async e => {
 }
 
 function loadAPNG(blob) {
+  const bytes =
+    blob instanceof ArrayBuffer
+      ? new Uint8Array(blob)
+      : new Uint8Array(blob.buffer, blob.byteOffset, blob.byteLength)
+  const isWebP =
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  if (isWebP) {
+    if (!webpReady) {
+      return Promise.reject(new Error('Worker 中不支持 WebP 帧解码'))
+    }
+    return webpReady.then(() => {
+      if (typeof loadWEBP !== 'function') {
+        throw new Error('WebP 解码器 loadWEBP 未加载')
+      }
+      return loadWEBP(blob)
+    })
+  }
   return new APNG().load(blob).then(([frames, iterations]) => {
     const framePromises = frames.map(frame => {
       return new Promise(async (resolve, reject) => {
