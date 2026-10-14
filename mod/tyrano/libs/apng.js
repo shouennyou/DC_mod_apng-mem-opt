@@ -1,18 +1,27 @@
-// apng.js 同时在主线程和 Worker 中运行。仅主线程按需加载 WebP 解码器，
-// 并由 loadAPNG 等待其完成，避免动态脚本的异步加载竞态。
+// apng.js 同时在主线程和 Worker 中运行. 仅主线程按需加载 WebP 解码器,
+// 并由 loadAPNG 等待其完成, 避免动态脚本的异步加载竞态.
+function loadMainThreadScript(src, errorMessage) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = src
+    script.onload = resolve
+    script.onerror = () => reject(new Error(errorMessage))
+    ;(document.head || document.documentElement).appendChild(script)
+  })
+}
+
 const webpReady =
   typeof document === 'undefined'
     ? null
     : typeof loadWEBP === 'function'
       ? Promise.resolve()
-      : new Promise((resolve, reject) => {
-          const script = document.createElement('script')
-          script.src = './tyrano/libs/webp.js'
-          script.onload = resolve
-          script.onerror = () =>
-            reject(new Error('无法加载 WebP 解码器: ./tyrano/libs/webp.js'))
-          ;(document.head || document.documentElement).appendChild(script)
-        })
+      : loadMainThreadScript(
+          './tyrano/libs/webp.js',
+          '无法加载 WebP 解码器: ./tyrano/libs/webp.js'
+        )
+
+// 拍照插件的 WebP 兼容层随 apng-js.js 同步加载。这样 index.html 保存
+// parseAPNG 引用时，拿到的已是包装后的函数，而不会产生动态注入竞态。
 
 onmessage = async e => {
   try {
