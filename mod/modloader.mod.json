@@ -5,16 +5,16 @@
     "逍婉瑶"
   ],
   "description": "通过 APNG/WebP 按需加载与自动释放缓存，降低游戏常驻内存占用；可选使用原版式启动预加载。",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "update": {
     "source": "github",
     "repo": "shouennyou/DC_mod_assistant-suite"
   },
   "depends": {
-    "devilconnection-modloader": ">=1.7.1"
+    "devilconnection-modloader": ">=1.9.0"
   },
   "breaks": {
-    "assistant-suite": "<=1.1.0"
+    "assistant-suite": "<=1.1.2"
   },
   "injections": [
     {
