@@ -1,3 +1,4 @@
+# patch-config: {"matchThreshold":0.2,"deleteThreshold":0.2}
 Index: apng-js.js
 ===================================================================
 --- apng-js.js
