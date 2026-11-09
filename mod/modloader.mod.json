@@ -8,7 +8,7 @@
   "version": "1.2.0",
   "update": {
     "source": "github",
-    "repo": "shouennyou/DC_mod_assistant-suite"
+    "repo": "shouennyou/DC_mod_apng-mem-opt"
   },
   "depends": {
     "devilconnection-modloader": ">=1.9.0"
