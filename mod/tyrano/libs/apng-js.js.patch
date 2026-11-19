@@ -3,7 +3,7 @@ Index: apng-js.js
 ===================================================================
 --- apng-js.js
 +++ apng-js.js
-@@ -1003,5 +1003,205 @@
+@@ -1003,5 +1003,226 @@
  
  /***/ })
  /******/ ])
@@ -22,7 +22,7 @@ Index: apng-js.js
 + * isNotAPNG, 随后会调用 createImages, 因而触发 TypeError.
 + *
 + * 本文件只包装 apngJs.default. 真正的 PNG 仍完全交给官方 apng-js 解析.
-+ * WebP 则使用 webp.js 暴露的 loadWEBP, 并适配为拍照插件所需的接口.
++ * WebP 直接保留 WebCodecs 帧供 canvas 绘制，避免逐帧重编码为 PNG。
 + *
 + * 此代码必须紧随 apng-js bundle，以便 index.html 中的
 + * `var parseAPNG = apngJs.default` 取得包装后的函数。
@@ -50,19 +50,21 @@ Index: apng-js.js
 +    )
 +  }
 +
-+  function waitForWebPDecoder() {
-+    if (typeof global.loadWEBP === 'function') return Promise.resolve(global.loadWEBP)
++  function waitForWebPFrameDecoder() {
++    if (global.TyranoWebP && typeof global.TyranoWebP.decodeFramesForCanvas === 'function') {
++      return Promise.resolve(global.TyranoWebP.decodeFramesForCanvas)
++    }
 +
 +    return new Promise(function (resolve, reject) {
 +      var timeout = global.setTimeout(function () {
 +        global.clearInterval(timer)
-+        reject(new Error('WebP 解码器 loadWEBP 未加载'))
++        reject(new Error('WebP 快速帧解码器未加载'))
 +      }, 10000)
 +      var timer = global.setInterval(function () {
-+        if (typeof global.loadWEBP === 'function') {
++        if (global.TyranoWebP && typeof global.TyranoWebP.decodeFramesForCanvas === 'function') {
 +          global.clearInterval(timer)
 +          global.clearTimeout(timeout)
-+          resolve(global.loadWEBP)
++          resolve(global.TyranoWebP.decodeFramesForCanvas)
 +        }
 +      }, 16)
 +    })
@@ -76,32 +78,40 @@ Index: apng-js.js
 +    this.numPlays = 0
 +    this.playTime = 0
 +    this.frames = []
++    this._decoded = null
++    this._disposed = false
 +  }
 +
 +  WebPPhotoAsset.prototype.createImages = function () {
 +    var asset = this
 +    if (asset._loadPromise) return asset._loadPromise
++    if (asset._disposed) return Promise.reject(new Error('WebP 照片资源已释放'))
 +
-+    asset._loadPromise = waitForWebPDecoder()
-+      .then(function (loadWEBP) {
-+        return loadWEBP(asset._buffer)
++    asset._loadPromise = waitForWebPFrameDecoder()
++      .then(function (decodeFramesForCanvas) {
++        return decodeFramesForCanvas(asset._buffer)
 +      })
 +      .then(function (decoded) {
 +        if (!decoded || !Array.isArray(decoded.images) || decoded.images.length === 0) {
 +          throw new Error('WebP 解码器未返回图像帧')
++        }
++        if (asset._disposed) {
++          if (typeof decoded.dispose === 'function') decoded.dispose()
++          throw new Error('WebP 照片资源已释放')
 +        }
 +
 +        var info = global.TyranoWebP && global.TyranoWebP.inspect
 +          ? global.TyranoWebP.inspect(asset._buffer)
 +          : null
 +        asset.numPlays = info && Number(info.loopCount) > 0 ? Number(info.loopCount) + 1 : 0
++        asset._decoded = decoded
 +        asset.frames = decoded.images.map(function (image, index) {
 +          var delay = Number(decoded.delays && decoded.delays[index])
 +          return {
 +            left: 0,
 +            top: 0,
-+            width: image.naturalWidth || image.width || 0,
-+            height: image.naturalHeight || image.height || 0,
++            width: image.displayWidth || image.naturalWidth || image.width || 0,
++            height: image.displayHeight || image.naturalHeight || image.height || 0,
 +            delay: Number.isFinite(delay) && delay > 0 ? delay : 100,
 +            disposeOp: 0,
 +            blendOp: 0,
@@ -118,6 +128,17 @@ Index: apng-js.js
 +      })
 +
 +    return asset._loadPromise
++  }
++
++  WebPPhotoAsset.prototype.dispose = function () {
++    if (this._disposed) return
++    this._disposed = true
++    if (this._decoded && typeof this._decoded.dispose === 'function') {
++      this._decoded.dispose()
++    }
++    this._decoded = null
++    this.frames = []
++    this._buffer = null
 +  }
 +
 +  WebPPhotoAsset.prototype.getPlayer = function (context, autoPlay, width, height) {

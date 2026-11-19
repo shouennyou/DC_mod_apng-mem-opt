@@ -1,0 +1,30 @@
+# patch-config: {"matchThreshold":0.2,"deleteThreshold":0.2}
+Index: main.js
+===================================================================
+--- main.js
++++ main.js
+@@ -404,13 +404,20 @@
+   kag: TYRANO.kag,
+   start: function () {
+     this.kag.dc.playingCharas.forEach(player => player.stop())
+     this.kag.dc.playingCharas = []
+-    const urls = Object.values(this.kag.dc.photoAssets).flatMap(asset =>
+-      asset.frames.map(frame => frame.imageElement.src),
+-    )
++    Object.values(this.kag.dc.photoAssets).forEach(asset => {
++      // WebP 快速路径持有可 close 的 WebCodecs 帧；普通 APNG 继续回收 Object URL。
++      if (asset && typeof asset.dispose == 'function') {
++        asset.dispose()
++        return
++      }
++      ;(asset.frames || []).forEach(frame => {
++        const url = frame.imageElement && frame.imageElement.src
++        if (typeof url == 'string' && url) URL.revokeObjectURL(url)
++      })
++    })
+     this.kag.dc.photoAssets = {}
+-    urls.forEach(URL.revokeObjectURL)
+     this.kag.ftag.nextOrder()
+   },
+ }
+ TYRANO.kag.ftag.master_tag.replace_chara_assets = {

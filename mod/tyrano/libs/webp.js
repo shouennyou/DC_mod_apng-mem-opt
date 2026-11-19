@@ -167,6 +167,94 @@ function loadWEBP(blob) {
   })()
 }
 
+// 拍照插件使用 canvas 播放时的快速解码路径。
+// 直接保留 WebCodecs 的 VideoFrame，避免每一帧经历
+// VideoFrame -> canvas -> PNG Data URL -> Image 的二次编解码。
+// 调用方必须在不再使用时调用 dispose()，以 close() 这些帧。
+function decodeFramesForCanvas(blob) {
+  var bytes = toUint8(blob)
+  var info = inspect(bytes)
+  if (!info) return Promise.reject(new Error('不是 WebP 文件'))
+
+  if (typeof ImageDecoder !== 'function') {
+    if (info.animated) {
+      return Promise.reject(
+        new Error('当前 Chromium 不支持 ImageDecoder，无法拆分动态 WebP 帧')
+      )
+    }
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(new Blob([bytes], { type: 'image/webp' }))
+      var image = new Image()
+      image.onload = function () {
+        var released = false
+        resolve({
+          images: [image],
+          delays: [0],
+          dispose: function () {
+            if (released) return
+            released = true
+            image.src = ''
+            URL.revokeObjectURL(url)
+          },
+        })
+      }
+      image.onerror = function (error) {
+        URL.revokeObjectURL(url)
+        reject(error)
+      }
+      image.src = url
+    })
+  }
+
+  return (async function () {
+    var decoder = new ImageDecoder({
+      data: bytes.slice(),
+      type: 'image/webp',
+      preferAnimation: true,
+    })
+    var images = []
+    try {
+      await decoder.tracks.ready
+      var track = decoder.tracks.selectedTrack
+      var frameCount = Math.max(
+        Number(track && track.frameCount) || info.frameCount || 1,
+        1
+      )
+      var delays = []
+      for (var index = 0; index < frameCount; index++) {
+        var result = await decoder.decode({ frameIndex: index })
+        var frame = result.image
+        images.push(frame)
+        var duration = Number(frame.duration)
+        delays.push(
+          Number.isFinite(duration) && duration > 0
+            ? duration / 1000
+            : info.durations[index] || 100
+        )
+      }
+      var released = false
+      return {
+        images: images,
+        delays: delays,
+        dispose: function () {
+          if (released) return
+          released = true
+          images.forEach(function (image) {
+            if (image && typeof image.close === 'function') image.close()
+          })
+        },
+      }
+    } catch (error) {
+      images.forEach(function (image) {
+        if (image && typeof image.close === 'function') image.close()
+      })
+      throw error
+    } finally {
+      decoder.close()
+    }
+  })()
+}
+
 // WebP ANIM 块: 前 4 字节为背景色, 后 2 字节为小端循环次数.
 // 0 表示无限循环, 非零表示首次播放后的重复次数.
 function setLoopCount(input, count) {
@@ -206,4 +294,5 @@ window.TyranoWebP = {
     return !!inspect(input)
   },
   setLoopCount: setLoopCount,
+  decodeFramesForCanvas: decodeFramesForCanvas,
 }
